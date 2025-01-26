@@ -20,10 +20,10 @@ class ConstantsBase:
     
     @property
     def summary_out_dir(self):
-        return f"/scratch/hyun/results/summaries/{self.run}/"
+        return f"results/summaries/{self.run}/"
     @property
     def model_out_dir(self):
-        return f"/scratch/hyun/results/models/{self.run}/"
+        return f"results/models/{self.run}/"
 
     def get_outdirs(self):
         if os.path.exists(self.summary_out_dir):
