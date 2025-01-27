@@ -52,16 +52,16 @@ if __name__ == "__main__":
     from PINN_problem import *
     import argparse
     from glob import glob
-    #checkpoint_fol = "TBL_run_09"
+    #checkpoint_fol = "QUD_run_01"
     parser = argparse.ArgumentParser(description='QUD_PINN')
     parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
     args = parser.parse_args()
     checkpoint_fol = args.checkpoint
-    print(checkpoint_fol, type(checkpoint_fol))
+    #print(checkpoint_fol, type(checkpoint_fol))
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
-    #a['data_init_kwargs']['path'] = 'UrbanRescue/run065'
+    #a['data_init_kwargs']['path'] = '/scratch/hyun/UrbanRescue/run065/'
     #a['problem_init_kwargs']['path_s'] = 'Ground/'
     #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
     #    pickle.dump(a,f)
@@ -87,32 +87,32 @@ if __name__ == "__main__":
     model = Model(all_params["network"]["layers"], model_fn)
     all_params["network"]["layers"] = from_state_dict(model, a).params
 #%% temporal error는 51개의 시간단계에대해서 [:,0]는 velocity error, [:,1]은 pressure error
-    
+    uni, counts = np.unique(valid_data['pos'][:,0],return_counts=True)
     temporal_error_vel_list = []
     temporal_error_pre_list = []
+    c = 0
     for j in range(51):
         print(j)
-        pred = model_fn(all_params, valid_data['pos'].reshape((51,)+output_shape+(4,))[j,:,:,:,:].reshape(-1,4))
+        pred = model_fn(all_params, valid_data['pos'][c:counts[j]+c,:])
         output_keys = ['u', 'v', 'w', 'p']
         output_unnorm = [all_params["data"]['u_ref'],all_params["data"]['v_ref'],
                         all_params["data"]['w_ref'],1.185*all_params["data"]['u_ref']]
         outputs = {output_keys[i]:pred[:,i]*output_unnorm[i] for i in range(len(output_keys))}
         outputs['p'] = outputs['p'] - np.mean(outputs['p'])
-        output_ext = {output_keys[i]:valid_data['vel'].reshape((51,)+output_shape+(4,))[j,:,:,:,i].reshape(-1) for i in range(len(output_keys))}
-        output_ext['p'] = output_ext['p'] - np.mean(output_ext['p'])
+        output_ext = {output_keys[i]:valid_data['vel'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
+        #output_ext['p'] = output_ext['p'] - np.mean(output_ext['p'])
 
-
+        c = c + counts[j]
         f = np.concatenate([(outputs['u']-output_ext['u']).reshape(-1,1), 
                             (outputs['v']-output_ext['v']).reshape(-1,1), 
                             (outputs['w']-output_ext['w']).reshape(-1,1)],1)
         div = np.concatenate([output_ext['u'].reshape(-1,1), output_ext['v'].reshape(-1,1), 
                             output_ext['w'].reshape(-1,1)],1)
 
-        temporal_error_pre_list.append(np.linalg.norm(outputs['p'] - output_ext['p'])/np.linalg.norm(output_ext['p']))
+        #temporal_error_pre_list.append(np.linalg.norm(outputs['p'] - output_ext['p'])/np.linalg.norm(output_ext['p']))
         temporal_error_vel_list.append(np.linalg.norm(f, ord='fro')/np.linalg.norm(div,ord='fro'))    
 
-    temporal_error = np.concatenate([np.array(temporal_error_vel_list).reshape(-1,1),
-                                     np.array(temporal_error_pre_list).reshape(-1,1)],1)
+    temporal_error = np.array(temporal_error_vel_list).reshape(-1,1)
 
     if os.path.isdir("datas/"+checkpoint_fol):
         pass
@@ -122,3 +122,5 @@ if __name__ == "__main__":
     with open("datas/"+checkpoint_fol+"/temporal_error.pkl","wb") as f:
         pickle.dump(temporal_error,f)
     f.close()
+
+# %%
