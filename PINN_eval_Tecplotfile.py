@@ -41,9 +41,9 @@ class PINN(PINNbase):
         all_params["problem"] = self.c.problem.init_params(**self.c.problem_init_kwargs)
         optimiser = self.c.optimization_init_kwargs["optimiser"](self.c.optimization_init_kwargs["learning_rate"])
         grids, all_params = self.c.domain.sampler(all_params)
-        train_data, all_params = self.c.data.train_data(all_params)
+        train_data,valid_data, all_params = self.c.data.train_data(all_params)
         all_params = self.c.problem.constraints(all_params)
-        valid_data = self.c.problem.exact_solution(all_params)
+        #valid_data = self.c.problem.exact_solution(all_params)
         model_fn = c.network.network_fn
         return all_params, model_fn, train_data, valid_data
     
@@ -81,8 +81,7 @@ def Derivatives(dynamic_params, all_params, g_batch, model_fns):
                   np.abs(0.5 * (deriv_mat[:, i, j] - deriv_mat[:, j, i]))**2 
                   for i in range(3) for j in range(3))
     return uvwp, vor_mag, Q
-#%%
-print(all_params["domain"]["in_max"])
+
 #%%
 if __name__ == "__main__":
     from PINN_domain import *
@@ -90,23 +89,27 @@ if __name__ == "__main__":
     from PINN_network import *
     from PINN_constants import *
     from PINN_problem import *
-    #parser = argparse.ArgumentParser(description='TBL_PINN')
-    #parser.add_argument('-t', '--timestep', type=int, help='timestep', default=25)
-    #args = parser.parse_args()
-    #timestep = args.timestep
+    import argparse
+    from glob import glob
+
+    parser = argparse.ArgumentParser(description='QUD_PINN')
+    parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
+    args = parser.parse_args()
+    checkpoint_fol = args.checkpoint
+    print(checkpoint_fol, type(checkpoint_fol))
+
     u_tau = 15*10**(-6)/36.2/10**(-6)
     u_ref_n = 4.9968*10**(-2)/u_tau
     delta = 36.2*10**(-6)
     x_ref_n = 1.0006*10**(-3)/delta
 
-    checkpoint_fol = "TBL_run_06"
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
-    a['data_init_kwargs']['path'] = '/scratch/hyun/TBL/'
-    a['problem_init_kwargs']['path_s'] = '/scratch/hyun/Ground/'
-    with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
-        pickle.dump(a,f)
+    #a['data_init_kwargs']['path'] = 'DNS/'
+    #a['problem_init_kwargs']['path_s'] = 'Ground/'
+    #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
+    #    pickle.dump(a,f)
 
     values = list(a.values())
 
@@ -117,8 +120,8 @@ if __name__ == "__main__":
                 problem_init_kwargs = values[4],
                 optimization_init_kwargs = values[5],)
     run = PINN(c)
-
-    with open(run.c.model_out_dir + "saved_dic_340000.pkl","rb") as f:
+    checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[4].split('.')[0]))
+    with open(checkpoint_list[-1],'rb') as f:
         a = pickle.load(f)
     all_params, model_fn, train_data, valid_data = run.test()
 
@@ -134,7 +137,7 @@ if __name__ == "__main__":
 #%%
     ref_key = ['t_ref', 'x_ref', 'y_ref', 'z_ref', 'u_ref', 'v_ref', 'w_ref']
     ref_data = {ref_key[i]:ref_val for i, ref_val in enumerate(np.concatenate([pos_ref,vel_ref]))}
-    datapath = 'eval_grid/PG_TBL_dnsinterp.mat'
+    datapath = '/home/hgf_dlr/hgf_dzj2734/TBL/PG_TBL_dnsinterp.mat'
     data = loadmat(datapath)
     eval_key = ['x', 'y', 'z', 'x_pred', 'y_pred', 'z_pred', 'u1', 'v1', 'w1', 'p1', 'um', 'vm', 'wm']
     DNS_grid = (0.001*data['y'][:,0,0], 0.001*data['x'][0,:,0], 0.001*data['z'][0,0,:])
@@ -177,7 +180,7 @@ if __name__ == "__main__":
     p_error = np.sqrt(np.square(uvwp[:,3].reshape(31,88,410) - fluc_ground[3]))
 #%%
     filename = "datas/"+checkpoint_fol+"/TBL_eval_"+str(timestep)+".dat"
-    if "datas/"+checkpoint_fol:
+    if os.path.isdir("datas/"+checkpoint_fol):
         pass
     else:
         os.mkdir("datas/"+checkpoint_fol)

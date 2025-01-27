@@ -37,9 +37,9 @@ class PINN(PINNbase):
         all_params["problem"] = self.c.problem.init_params(**self.c.problem_init_kwargs)
         optimiser = self.c.optimization_init_kwargs["optimiser"](self.c.optimization_init_kwargs["learning_rate"])
         grids, all_params = self.c.domain.sampler(all_params)
-        train_data, all_params = self.c.data.train_data(all_params)
+        train_data, valid_data, all_params = self.c.data.train_data(all_params)
         all_params = self.c.problem.constraints(all_params)
-        valid_data = self.c.problem.exact_solution(all_params)
+        #valid_data = self.c.problem.exact_solution(all_params)
         model_fn = c.network.network_fn
         return all_params, model_fn, train_data, valid_data
 
@@ -50,14 +50,21 @@ if __name__ == "__main__":
     from PINN_network import *
     from PINN_constants import *
     from PINN_problem import *
-    checkpoint_fol = "TBL_run_06"
+    import argparse
+    from glob import glob
+    #checkpoint_fol = "TBL_run_09"
+    parser = argparse.ArgumentParser(description='QUD_PINN')
+    parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
+    args = parser.parse_args()
+    checkpoint_fol = args.checkpoint
+    print(checkpoint_fol, type(checkpoint_fol))
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
-    a['data_init_kwargs']['path'] = '/scratch/hyun/TBL/'
-    a['problem_init_kwargs']['path_s'] = '/scratch/hyun/Ground/'
-    with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
-        pickle.dump(a,f)
+    #a['data_init_kwargs']['path'] = 'UrbanRescue/run065'
+    #a['problem_init_kwargs']['path_s'] = 'Ground/'
+    #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
+    #    pickle.dump(a,f)
 
     values = list(a.values())
 
@@ -68,15 +75,19 @@ if __name__ == "__main__":
                 problem_init_kwargs = values[4],
                 optimization_init_kwargs = values[5],)
     run = PINN(c)
-
-    with open(run.c.model_out_dir + "saved_dic_340000.pkl","rb") as f:
+    #checkpoint_list = np.sort(glob(run.c.model_out_dir+'/*.pkl'))
+    #with open(run.c.model_out_dir + "saved_dic_720000.pkl","rb") as f:
+    
+    checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[4].split('.')[0]))
+    print(checkpoint_list)
+    with open(checkpoint_list[-1],'rb') as f:
         a = pickle.load(f)
     all_params, model_fn, train_data, valid_data = run.test()
 
     model = Model(all_params["network"]["layers"], model_fn)
     all_params["network"]["layers"] = from_state_dict(model, a).params
 #%% temporal error는 51개의 시간단계에대해서 [:,0]는 velocity error, [:,1]은 pressure error
-    output_shape = (213,141,61)
+    
     temporal_error_vel_list = []
     temporal_error_pre_list = []
     for j in range(51):
@@ -102,6 +113,11 @@ if __name__ == "__main__":
 
     temporal_error = np.concatenate([np.array(temporal_error_vel_list).reshape(-1,1),
                                      np.array(temporal_error_pre_list).reshape(-1,1)],1)
+
+    if os.path.isdir("datas/"+checkpoint_fol):
+        pass
+    else:
+        os.mkdir("datas/"+checkpoint_fol)
 
     with open("datas/"+checkpoint_fol+"/temporal_error.pkl","wb") as f:
         pickle.dump(temporal_error,f)

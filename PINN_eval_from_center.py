@@ -38,9 +38,9 @@ class PINN(PINNbase):
         all_params["problem"] = self.c.problem.init_params(**self.c.problem_init_kwargs)
         optimiser = self.c.optimization_init_kwargs["optimiser"](self.c.optimization_init_kwargs["learning_rate"])
         grids, all_params = self.c.domain.sampler(all_params)
-        train_data, all_params = self.c.data.train_data(all_params)
+        train_data, valid_data, all_params = self.c.data.train_data(all_params)
         all_params = self.c.problem.constraints(all_params)
-        valid_data = self.c.problem.exact_solution(all_params)
+        #valid_data = self.c.problem.exact_solution(all_params)
         model_fn = c.network.network_fn
         return all_params, model_fn, train_data, valid_data
 
@@ -51,16 +51,24 @@ if __name__ == "__main__":
     from PINN_network import *
     from PINN_constants import *
     from PINN_problem import *
-    checkpoint_fol = "TBL_run_09"
+    import argparse
+    from glob import glob
+    parser = argparse.ArgumentParser(description='QUD_PINN')
+    parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
+    args = parser.parse_args()
+    checkpoint_fol = args.checkpoint
+    print(checkpoint_fol, type(checkpoint_fol))
+
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
 
-    a['data_init_kwargs']['path'] = '/home/hgf_dlr/hgf_dzj2734/TBL/DNS/'
-    a['problem_init_kwargs']['path_s'] = '/home/hgf_dlr/hgf_dzj2734/TBL/Ground/'
-    a['problem_init_kwargs']['problem_name'] = 'TBL'
-    with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
-        pickle.dump(a,f)
+    #a['data_init_kwargs']['path'] = '/'
+    #a['problem_init_kwargs']['path_s'] = 'Ground/'
+    #a['problem_init_kwargs']['problem_name'] = 'TBL'
+    
+    #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
+    #    pickle.dump(a,f)
     f.close()
     values = list(a.values())
 
@@ -71,7 +79,9 @@ if __name__ == "__main__":
                 problem_init_kwargs = values[4],
                 optimization_init_kwargs = values[5],)
     run = PINN(c)
-    with open(run.c.model_out_dir + "saved_dic_6440000.pkl","rb") as f:
+    checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[4].split('.')[0]))
+    print(checkpoint_list)
+    with open(checkpoint_list[-1],'rb') as f:
         a = pickle.load(f)
     all_params, model_fn, train_data, valid_data = run.test()
 
@@ -127,7 +137,7 @@ if __name__ == "__main__":
 #%% valid data의 center로부터의 거리에 따라 Error를 표시
     v_pos_un = np.concatenate([valid_data['pos'][:,i:i+1]*all_params["domain"]["in_max"][0,i] 
                                 for i in range(4)],1).reshape((-1,)+output_shape+(4,))
-    v_pos_c = v_pos_un[1,:,:,:,:].reshape(-1,4) - v_pos_un[1,64,64,64,:]
+    v_pos_c = v_pos_un[1,:,:,:,:].reshape(-1,4) - np.array([all_params["domain"]["in_max"].reshape(1,4)/2])
     v_pos_c = np.sqrt(v_pos_c[:,1]**2+v_pos_c[:,2]**2+v_pos_c[:,3]**2)
     v_pos_un = v_pos_un.reshape(-1,4)
     idx = v_pos_c.argsort(0)
@@ -145,16 +155,16 @@ if __name__ == "__main__":
     v_e_l = []
     p_e_l = []
     for i in range(51):
-        v_e = np.sqrt((np.sqrt(out_u[129**3*i:129**3*(i+1),0:1]**2
-                               +out_u[129**3*i:129**3*(i+1),1:2]**2
-                               +out_u[129**3*i:129**3*(i+1),2:3]**2)
-                       -np.sqrt(valid_data['vel'][129**3*i:129**3*(i+1),0:1]**2
-                                +valid_data['vel'][129**3*i:129**3*(i+1),1:2]**2
-                                +valid_data['vel'][129**3*i:129**3*(i+1),2:3]**2))**2)/np.sqrt(valid_data['vel'][129**3*i:129**3*(i+1),0:1]**2
-                                                                                               +valid_data['vel'][129**3*i:129**3*(i+1),1:2]**2
-                                                                                               +valid_data['vel'][129**3*i:129**3*(i+1),2:3]**2)
-        p_e = np.sqrt((out_u[129**3*i:129**3*(i+1),2:3]
-                       -valid_data['vel'][129**3*i:129**3*(i+1),2:3])**2/valid_data['vel'][129**3*i:129**3*(i+1),2:3]**2)
+        v_e = np.sqrt((np.sqrt(out_u[output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),0:1]**2
+                               +out_u[output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),1:2]**2
+                               +out_u[output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3]**2)
+                       -np.sqrt(valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),0:1]**2
+                                +valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),1:2]**2
+                                +valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3]**2))**2)/np.sqrt(valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),0:1]**2
+                                                                                               +valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),1:2]**2
+                                                                                               +valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3]**2)
+        p_e = np.sqrt((out_u[output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3]
+                       -valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3])**2/valid_data['vel'][output_shape[0]*output_shape[1]*output_shape[2]*i:output_shape[0]*output_shape[1]*output_shape[2]*(i+1),2:3]**2)
         v_e_l.append(v_e[idx])
         p_e_l.append(p_e[idx])
     v_e_l = np.hstack(v_e_l)

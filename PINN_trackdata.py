@@ -145,9 +145,7 @@ class Data(Database):
             filenames = sorted(glob(path+'*.dat'))[int(domain_range['t'][0]*frequency):int(domain_range['t'][-1]*frequency)+1][::timeskip]
         datas = {data_keys[i]:[] for i in range(len(data_keys))}
         for t, filename in enumerate(filenames):
-            
             if ".dat" in filename:
-                print(t)
                 all_data_ = Data.data_load(filename, data_keys)
             if ".npy" in filename:
                 all_data_ = Data.data_load_npy(filename, data_keys)
