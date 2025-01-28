@@ -160,8 +160,8 @@ if __name__ == "__main__":
         pass
     else:
         os.mkdir("datas/"+checkpoint_fol)
-    X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:31,0,0].shape[0])
-    vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(31,88,410).reshape(-1)),
+    X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:,0,0].shape[0])
+    vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(-1)),
             ('w_pred[m/s]',uvwp[:,2].reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),
             ('vormag[1/s]',vor_mag.reshape(-1)), ('Q[1/s^2]', Q.reshape(-1))]
     fw = 27
