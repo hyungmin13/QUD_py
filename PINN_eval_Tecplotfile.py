@@ -45,7 +45,7 @@ class PINN(PINNbase):
         all_params = self.c.problem.constraints(all_params)
         #valid_data = self.c.problem.exact_solution(all_params)
         model_fn = c.network.network_fn
-        return all_params, model_fn, train_data, valid_data
+        return all_params, model_fn, train_data, valid_data, grids
     
 def equ_func(all_params, g_batch, cotangent, model_fns):
     def u_t(batch):
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
+    a['domain_init_kwargs']['grid_size'] = [51, 240, 240, 200]
     #a['data_init_kwargs']['path'] = 'DNS/'
     #a['problem_init_kwargs']['path_s'] = 'Ground/'
     #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
@@ -123,7 +124,7 @@ if __name__ == "__main__":
     checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[4].split('.')[0]))
     with open(checkpoint_list[-1],'rb') as f:
         a = pickle.load(f)
-    all_params, model_fn, train_data, valid_data = run.test()
+    all_params, model_fn, train_data, valid_data, grids = run.test()
 
     model = Model(all_params["network"]["layers"], model_fn)
     all_params["network"]["layers"] = from_state_dict(model, a).params
@@ -137,49 +138,41 @@ if __name__ == "__main__":
 #%%
     ref_key = ['t_ref', 'x_ref', 'y_ref', 'z_ref', 'u_ref', 'v_ref', 'w_ref']
     ref_data = {ref_key[i]:ref_val for i, ref_val in enumerate(np.concatenate([pos_ref,vel_ref]))}
-    datapath = '/home/hgf_dlr/hgf_dzj2734/TBL/PG_TBL_dnsinterp.mat'
-    data = loadmat(datapath)
-    eval_key = ['x', 'y', 'z', 'x_pred', 'y_pred', 'z_pred', 'u1', 'v1', 'w1', 'p1', 'um', 'vm', 'wm']
-    DNS_grid = (0.001*data['y'][:,0,0], 0.001*data['x'][0,:,0], 0.001*data['z'][0,0,:])
-    eval_grid = np.concatenate([0.001*data['y_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
-                                0.001*data['x_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
-                                0.001*data['z_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1)],1)
-    vel_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) for i in range(3)]
-    fluc_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) - data[eval_key[i+10]].reshape(32,88,410)[:31,:,:] for i in range(3)]
-    p_cent = interpn(DNS_grid, data['p1'], eval_grid).reshape(31,88,410)
-    fluc_ground.append(p_cent-np.mean(p_cent))
-    V_mag = np.sqrt(fluc_ground[0]**2+fluc_ground[1]**2+fluc_ground[2]**2)
-    div_list = [V_mag, V_mag, V_mag, fluc_ground[-1]]
-    fluc_ground[-1] = (fluc_ground[-1]*u_ref_n**2 - 0.0025*eval_grid[:,1].reshape(31,88,410)[0,0,:]*x_ref_n)/u_ref_n**2
+    #datapath = '/home/hgf_dlr/hgf_dzj2734/TBL/PG_TBL_dnsinterp.mat'
+    #data = loadmat(datapath)
+    #eval_key = ['x', 'y', 'z', 'x_pred', 'y_pred', 'z_pred', 'u1', 'v1', 'w1', 'p1', 'um', 'vm', 'wm']
+    #DNS_grid = (0.001*data['y'][:,0,0], 0.001*data['x'][0,:,0], 0.001*data['z'][0,0,:])
+    #eval_grid = np.concatenate([0.001*data['y_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
+    #                            0.001*data['x_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
+    #                            0.001*data['z_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1)],1)
+    #vel_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) for i in range(3)]
+    #fluc_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) - data[eval_key[i+10]].reshape(32,88,410)[:31,:,:] for i in range(3)]
+    #p_cent = interpn(DNS_grid, data['p1'], eval_grid).reshape(31,88,410)
+    #fluc_ground.append(p_cent-np.mean(p_cent))
+    #V_mag = np.sqrt(fluc_ground[0]**2+fluc_ground[1]**2+fluc_ground[2]**2)
+    #div_list = [V_mag, V_mag, V_mag, fluc_ground[-1]]
+    #fluc_ground[-1] = (fluc_ground[-1]*u_ref_n**2 - 0.0025*eval_grid[:,1].reshape(31,88,410)[0,0,:]*x_ref_n)/u_ref_n**2
 
-    eval_grid_n = np.concatenate([np.zeros((eval_grid.shape[0],1))+timestep*(1/17954),
-                                eval_grid[:,1:2], eval_grid[:,0:1], eval_grid[:,2:3]],1)
-    for i in range(eval_grid_n.shape[1]): eval_grid_n[:,i] = eval_grid_n[:,i]/ref_data[ref_key[i]] 
+    #eval_grid_n = np.concatenate([np.zeros((eval_grid.shape[0],1))+timestep*(1/17954),
+    #                            eval_grid[:,1:2], eval_grid[:,0:1], eval_grid[:,2:3]],1)
+    #for i in range(eval_grid_n.shape[1]): eval_grid_n[:,i] = eval_grid_n[:,i]/ref_data[ref_key[i]] 
 #%%
-    eval_grid_z = eval_grid.reshape(31,88,410,3)
-    x_e = eval_grid_z[:,:,:,1]
-    y_e = eval_grid_z[:,:,:,0]
-    z_e = eval_grid_z[:,:,:,2]
+    mesh_xyz = np.meshgrid(grids['eqns']['x'], grids['eqns']['y'], grids['eqns']['z'], indexing='ij')
+    shape = mesh_xyz[0].reshape(-1).shape[0]
+    eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
+    x_e = grids['eqns']['x']*ref_data['x_ref']
+    y_e = grids['eqns']['y']*ref_data['y_ref']
+    z_e = grids['eqns']['z']*ref_data['z_ref']
 
 #%%
     dynamic_params = all_params["network"].pop("layers")
-    uvwp, vor_mag, Q = zip(*[Derivatives(dynamic_params, all_params, eval_grid_n[i:i+10000], model_fn) 
-                             for i in range(0, eval_grid_n.shape[0], 10000)])
+    uvwp, vor_mag, Q = zip(*[Derivatives(dynamic_params, all_params, eval_grid[i:i+10000], model_fn) 
+                             for i in range(0, eval_grid.shape[0], 10000)])
     uvwp = np.concatenate(uvwp, axis=0)
     vor_mag = np.concatenate(vor_mag, axis=0)
     Q = np.concatenate(Q, axis=0)
 
-    u_fluc = uvwp[:,0].reshape(31,88,410) - data[eval_key[10]].reshape(32,88,410)[:31,:,:]
-    v_fluc = uvwp[:,1].reshape(31,88,410) - data[eval_key[11]].reshape(32,88,410)[:31,:,:]
-    w_fluc = uvwp[:,2].reshape(31,88,410) - data[eval_key[12]].reshape(32,88,410)[:31,:,:]
-    p_cent = uvwp[:,3].reshape(31,88,410) - np.mean(uvwp[:,3].reshape(31,88,410))
-
-    u_error = np.sqrt(np.square(uvwp[:,0].reshape(31,88,410) - vel_ground[0]))
-    v_error = np.sqrt(np.square(uvwp[:,1].reshape(31,88,410) - vel_ground[1]))
-    w_error = np.sqrt(np.square(uvwp[:,2].reshape(31,88,410) - vel_ground[2]))
-    p_error = np.sqrt(np.square(uvwp[:,3].reshape(31,88,410) - fluc_ground[3]))
-#%%
-    filename = "datas/"+checkpoint_fol+"/TBL_eval_"+str(timestep)+".dat"
+    filename = "datas/"+checkpoint_fol+"/QUD_eval_"+str(timestep)+".dat"
     if os.path.isdir("datas/"+checkpoint_fol):
         pass
     else:

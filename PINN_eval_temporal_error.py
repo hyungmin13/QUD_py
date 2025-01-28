@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
     args = parser.parse_args()
     checkpoint_fol = args.checkpoint
-    #print(checkpoint_fol, type(checkpoint_fol))
+    print(checkpoint_fol, type(checkpoint_fol))
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
