@@ -138,31 +138,14 @@ if __name__ == "__main__":
 #%%
     ref_key = ['t_ref', 'x_ref', 'y_ref', 'z_ref', 'u_ref', 'v_ref', 'w_ref']
     ref_data = {ref_key[i]:ref_val for i, ref_val in enumerate(np.concatenate([pos_ref,vel_ref]))}
-    #datapath = '/home/hgf_dlr/hgf_dzj2734/TBL/PG_TBL_dnsinterp.mat'
-    #data = loadmat(datapath)
-    #eval_key = ['x', 'y', 'z', 'x_pred', 'y_pred', 'z_pred', 'u1', 'v1', 'w1', 'p1', 'um', 'vm', 'wm']
-    #DNS_grid = (0.001*data['y'][:,0,0], 0.001*data['x'][0,:,0], 0.001*data['z'][0,0,:])
-    #eval_grid = np.concatenate([0.001*data['y_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
-    #                            0.001*data['x_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1),
-    #                            0.001*data['z_pred'].reshape(32,88,410)[:31,:,:].reshape(-1,1)],1)
-    #vel_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) for i in range(3)]
-    #fluc_ground = [interpn(DNS_grid, data[eval_key[i+6]], eval_grid).reshape(31,88,410) - data[eval_key[i+10]].reshape(32,88,410)[:31,:,:] for i in range(3)]
-    #p_cent = interpn(DNS_grid, data['p1'], eval_grid).reshape(31,88,410)
-    #fluc_ground.append(p_cent-np.mean(p_cent))
-    #V_mag = np.sqrt(fluc_ground[0]**2+fluc_ground[1]**2+fluc_ground[2]**2)
-    #div_list = [V_mag, V_mag, V_mag, fluc_ground[-1]]
-    #fluc_ground[-1] = (fluc_ground[-1]*u_ref_n**2 - 0.0025*eval_grid[:,1].reshape(31,88,410)[0,0,:]*x_ref_n)/u_ref_n**2
 
-    #eval_grid_n = np.concatenate([np.zeros((eval_grid.shape[0],1))+timestep*(1/17954),
-    #                            eval_grid[:,1:2], eval_grid[:,0:1], eval_grid[:,2:3]],1)
-    #for i in range(eval_grid_n.shape[1]): eval_grid_n[:,i] = eval_grid_n[:,i]/ref_data[ref_key[i]] 
 #%%
     mesh_xyz = np.meshgrid(grids['eqns']['x'], grids['eqns']['y'], grids['eqns']['z'], indexing='ij')
     shape = mesh_xyz[0].reshape(-1).shape[0]
     eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
-    x_e = grids['eqns']['x']*ref_data['x_ref']
-    y_e = grids['eqns']['y']*ref_data['y_ref']
-    z_e = grids['eqns']['z']*ref_data['z_ref']
+    x_e = eval_grid[:,1].reshape(240,240,200)*ref_data['x_ref']
+    y_e = eval_grid[:,2].reshape(240,240,200)*ref_data['y_ref']
+    z_e = eval_grid[:,3].reshape(240,240,200)*ref_data['z_ref']
 
 #%%
     dynamic_params = all_params["network"].pop("layers")
@@ -178,12 +161,8 @@ if __name__ == "__main__":
     else:
         os.mkdir("datas/"+checkpoint_fol)
     X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:31,0,0].shape[0])
-    vars = [('u_ground[m/s]', np.float32(vel_ground[0].reshape(-1))), ('v_ground[m/s]', np.float32(vel_ground[1].reshape(-1))), ('w_ground[m/s]', np.float32(vel_ground[2].reshape(-1))), ('p_ground[Pa]', np.float32(fluc_ground[-1].reshape(-1))),
-            ('u_fluc_ground[m/s]', np.float32(fluc_ground[0].reshape(-1))), ('v_fluc_ground[m/s]', np.float32(fluc_ground[1].reshape(-1))), ('w_fluc_ground[m/s]', np.float32(fluc_ground[2].reshape(-1))),
-            ('u_pred[m/s]',np.float32(uvwp[:,0].reshape(31,88,410).reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(31,88,410).reshape(-1)),
-            ('w_pred[m/s]',uvwp[:,2].reshape(31,88,410).reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),
-            ('u_fluc[m/s]',u_fluc.reshape(-1)), ('v_fluc[m/s]',v_fluc.reshape(-1)), ('w_fluc[m/s]',w_fluc.reshape(-1)),
-            ('u_error[m/s]',u_error.reshape(-1)), ('v_error[m/s]',v_error.reshape(-1)), ('w_error[m/s]',w_error.reshape(-1)), ('p_error[Pa]',p_error.reshape(-1)),
+    vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(31,88,410).reshape(-1)),
+            ('w_pred[m/s]',uvwp[:,2].reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),
             ('vormag[1/s]',vor_mag.reshape(-1)), ('Q[1/s^2]', Q.reshape(-1))]
     fw = 27
     tecplot_Mesh(filename, X, Y, Z, x_e.reshape(-1), y_e.reshape(-1), z_e.reshape(-1), vars, fw)
