@@ -94,12 +94,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='QUD_PINN')
     parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
-    parser.add_argumnet('-t', '--timestep', type=int, help='timestep', default="")
+    #parser.add_argumnet('-t', '--timestep', type=int, help='timestep', default="")
     args = parser.parse_args()
     checkpoint_fol = args.checkpoint
-    timestep = args.timestep
-    print(checkpoint_fol, type(checkpoint_fol))
-
+    #timestep = args.timestep
+    #print(checkpoint_fol, type(checkpoint_fol))
+    checkpoint_fol = "QUD_run_01"
     u_tau = 15*10**(-6)/36.2/10**(-6)
     u_ref_n = 4.9968*10**(-2)/u_tau
     delta = 36.2*10**(-6)
@@ -108,8 +108,8 @@ if __name__ == "__main__":
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
-    a['domain_init_kwargs']['grid_size'] = [51, 240, 240, 200]
-    #a['data_init_kwargs']['path'] = 'DNS/'
+    a['domain_init_kwargs']['grid_size'] = [51, 360, 360, 300]
+    #a['data_init_kwargs']['path'] = '/scratch/hyun/UrbanRescue/run065/'
     #a['problem_init_kwargs']['path_s'] = 'Ground/'
     #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
     #    pickle.dump(a,f)
@@ -136,14 +136,16 @@ if __name__ == "__main__":
     vel_ref = np.array([all_params["data"]["u_ref"],
                         all_params["data"]["v_ref"],
                         all_params["data"]["w_ref"]])
-#%%
+
     ref_key = ['t_ref', 'x_ref', 'y_ref', 'z_ref', 'u_ref', 'v_ref', 'w_ref']
     ref_data = {ref_key[i]:ref_val for i, ref_val in enumerate(np.concatenate([pos_ref,vel_ref]))}
 
 #%%
-    mesh_xyz = np.meshgrid(grids['eqns']['x'], grids['eqns']['y'], grids['eqns']['z'], indexing='ij')
+    timestep =25
+    mesh_xyz = np.meshgrid(grids['eqns']['x'][60:300], grids['eqns']['y'][60:300], grids['eqns']['z'][3:203], indexing='ij')
     shape = mesh_xyz[0].reshape(-1).shape[0]
-    eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
+    eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),
+                                mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
     x_e = eval_grid[:,1].reshape(240,240,200)*ref_data['x_ref']
     y_e = eval_grid[:,2].reshape(240,240,200)*ref_data['y_ref']
     z_e = eval_grid[:,3].reshape(240,240,200)*ref_data['z_ref']
@@ -168,3 +170,5 @@ if __name__ == "__main__":
     fw = 27
     tecplot_Mesh(filename, X, Y, Z, x_e.reshape(-1), y_e.reshape(-1), z_e.reshape(-1), vars, fw)
 
+
+# %%
