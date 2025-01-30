@@ -141,34 +141,33 @@ if __name__ == "__main__":
     ref_data = {ref_key[i]:ref_val for i, ref_val in enumerate(np.concatenate([pos_ref,vel_ref]))}
 
 #%%
-    timestep =25
-    mesh_xyz = np.meshgrid(grids['eqns']['x'][60:300], grids['eqns']['y'][60:300], grids['eqns']['z'][3:203], indexing='ij')
-    shape = mesh_xyz[0].reshape(-1).shape[0]
-    eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),
-                                mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
-    x_e = eval_grid[:,1].reshape(240,240,200)*ref_data['x_ref']
-    y_e = eval_grid[:,2].reshape(240,240,200)*ref_data['y_ref']
-    z_e = eval_grid[:,3].reshape(240,240,200)*ref_data['z_ref']
+    for s in range(51):
+        timestep =s
+        mesh_xyz = np.meshgrid(grids['eqns']['x'][60:300], grids['eqns']['y'][60:300], grids['eqns']['z'][3:203], indexing='ij')
+        shape = mesh_xyz[0].reshape(-1).shape[0]
+        eval_grid = np.concatenate([np.zeros((shape,1))+grids['eqns']['t'][timestep],mesh_xyz[0].reshape(-1,1),
+                                    mesh_xyz[1].reshape(-1,1),mesh_xyz[2].reshape(-1,1)],1)
+        x_e = eval_grid[:,1].reshape(240,240,200)*ref_data['x_ref']
+        y_e = eval_grid[:,2].reshape(240,240,200)*ref_data['y_ref']
+        z_e = eval_grid[:,3].reshape(240,240,200)*ref_data['z_ref']
 
 #%%
-    dynamic_params = all_params["network"].pop("layers")
-    uvwp, vor_mag, Q = zip(*[Derivatives(dynamic_params, all_params, eval_grid[i:i+10000], model_fn) 
-                             for i in range(0, eval_grid.shape[0], 10000)])
-    uvwp = np.concatenate(uvwp, axis=0)
-    vor_mag = np.concatenate(vor_mag, axis=0)
-    Q = np.concatenate(Q, axis=0)
+        dynamic_params = all_params["network"].pop("layers")
+        uvwp, vor_mag, Q = zip(*[Derivatives(dynamic_params, all_params, eval_grid[i:i+10000], model_fn) 
+                                for i in range(0, eval_grid.shape[0], 10000)])
+        uvwp = np.concatenate(uvwp, axis=0)
+        vor_mag = np.concatenate(vor_mag, axis=0)
+        Q = np.concatenate(Q, axis=0)
 
-    filename = "Tecplot_data/"+checkpoint_fol+"/QUD_eval_"+str(timestep)+".dat"
-    if os.path.isdir("Tecplot_data/"+checkpoint_fol):
-        pass
-    else:
-        os.mkdir("Tecplot_data/"+checkpoint_fol)
-    X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:,0,0].shape[0])
-    vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(-1)),
-            ('w_pred[m/s]',uvwp[:,2].reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),
-            ('vormag[1/s]',vor_mag.reshape(-1)), ('Q[1/s^2]', Q.reshape(-1))]
-    fw = 27
-    tecplot_Mesh(filename, X, Y, Z, x_e.reshape(-1), y_e.reshape(-1), z_e.reshape(-1), vars, fw)
+        filename = "Tecplot_data/"+checkpoint_fol+"/QUD_eval_"+str(timestep)+".dat"
+        if os.path.isdir("Tecplot_data/"+checkpoint_fol):
+            pass
+        else:
+            os.mkdir("Tecplot_data/"+checkpoint_fol)
+        X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:,0,0].shape[0])
+        vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(-1)),
+                ('w_pred[m/s]',uvwp[:,2].reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),
+                ('vormag[1/s]',vor_mag.reshape(-1)), ('Q[1/s^2]', Q.reshape(-1))]
+        fw = 27
+        tecplot_Mesh(filename, X, Y, Z, x_e.reshape(-1), y_e.reshape(-1), z_e.reshape(-1), vars, fw)
 
-
-# %%
