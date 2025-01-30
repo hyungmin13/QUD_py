@@ -94,8 +94,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='QUD_PINN')
     parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
+    parser.add_argumnet('-t', '--timestep', type=int, help='timestep', default="")
     args = parser.parse_args()
     checkpoint_fol = args.checkpoint
+    timestep = args.timestep
     print(checkpoint_fol, type(checkpoint_fol))
 
     u_tau = 15*10**(-6)/36.2/10**(-6)
@@ -130,7 +132,6 @@ if __name__ == "__main__":
     all_params["network"]["layers"] = from_state_dict(model, a).params
 
 #%%
-    timestep = 25
     pos_ref = all_params["domain"]["in_max"].flatten()
     vel_ref = np.array([all_params["data"]["u_ref"],
                         all_params["data"]["v_ref"],
@@ -155,11 +156,11 @@ if __name__ == "__main__":
     vor_mag = np.concatenate(vor_mag, axis=0)
     Q = np.concatenate(Q, axis=0)
 
-    filename = "datas/"+checkpoint_fol+"/QUD_eval_"+str(timestep)+".dat"
-    if os.path.isdir("datas/"+checkpoint_fol):
+    filename = "Tecplot_data/"+checkpoint_fol+"/QUD_eval_"+str(timestep)+".dat"
+    if os.path.isdir("Tecplot_data/"+checkpoint_fol):
         pass
     else:
-        os.mkdir("datas/"+checkpoint_fol)
+        os.mkdir("Tecplot_data/"+checkpoint_fol)
     X, Y, Z = (x_e[0,0,:].shape[0], y_e[0,:,0].shape[0], z_e[:,0,0].shape[0])
     vars = [('u_pred[m/s]',np.float32(uvwp[:,0].reshape(-1))), ('v_pred[m/s]',uvwp[:,1].reshape(-1)),
             ('w_pred[m/s]',uvwp[:,2].reshape(-1)), ('p_pred[Pa]',uvwp[:,3].reshape(-1)),

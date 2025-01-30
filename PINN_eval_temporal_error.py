@@ -128,7 +128,7 @@ if __name__ == "__main__":
     #checkpoint_list = np.sort(glob(run.c.model_out_dir+'/*.pkl'))
     #with open(run.c.model_out_dir + "saved_dic_720000.pkl","rb") as f:
     
-    checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[4].split('.')[0]))
+    checkpoint_list = sorted(glob(run.c.model_out_dir+'/*.pkl'), key=lambda x: int(x.split('_')[5].split('.')[0]))
     print(checkpoint_list)
     with open(checkpoint_list[-1],'rb') as f:
         a = pickle.load(f)
@@ -137,33 +137,37 @@ if __name__ == "__main__":
     model = Model(all_params["network"]["layers"], model_fn)
     all_params["network"]["layers"] = from_state_dict(model, a).params
 #%% temporal error는 51개의 시간단계에대해서 [:,0]는 velocity error, [:,1]은 pressure error
-    uni, counts = np.unique(valid_data['pos'][:,0],return_counts=True)
-    print('count shape',counts.shape)
+
     temporal_error_vel_t_list = []
     temporal_error_vel_v_list = []
     temporal_error_acc_t_list = []
     temporal_error_acc_v_list = []
     c = 0
+    c2 = 0
     dynamic_params = all_params["network"]["layers"]
     data_keys = ['pos', 'vel', 'acc']
+
+    index_t = np.where((train_data['pos'][:,3]<0.4)&(train_data['pos'][:,3]>0.02))
+    train_data = {data_keys[i]:train_data[data_keys[i]][index_t[0],:] for i in range(len(data_keys))}
+    index_v = np.where((valid_data['pos'][:,3]<0.4)&(valid_data['pos'][:,3]>0.02))
+    valid_data = {data_keys[i]:valid_data[data_keys[i]][index_v[0],:] for i in range(len(data_keys))}
+    uni, counts = np.unique(valid_data['pos'][:,0],return_counts=True)
+    uni_, counts_ = np.unique(train_data['pos'][:,0],return_counts=True)
     for j in range(51):
-        index_t = np.where((train_data['pos'][:,3]<0.4)&(train_data['pos'][:,3]>0.02))
-        train_data = {data_keys[i]:train_data[data_keys[i]][index_t[0],:] for i in range(len(data_keys))}
-        index_v = np.where((valid_data['pos'][:,3]<0.4)&(valid_data['pos'][:,3]>0.02))
-        valid_data = {data_keys[i]:valid_data[data_keys[i]][index_v[0],:] for i in range(len(data_keys))}
+        print(j)
         acc_x_t_list = []
         acc_y_t_list = []
         acc_z_t_list = []
         pred_t_list = []
-        for k in range(train_data['pos'][c:counts[j]+c,:].shape[0]//1000):
-            pred_t = model_fn(all_params, train_data['pos'][c+1000*k:c+1000*(k+1),:])
-            acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c+1000*k:c+1000*(k+1),:], model_fn)
+        for k in range(train_data['pos'][c2:counts_[j]+c2,:].shape[0]//1000):
+            pred_t = model_fn(all_params, train_data['pos'][c2+1000*k:c2+1000*(k+1),:])
+            acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c2+1000*k:c2+1000*(k+1),:], model_fn)
             acc_x_t_list.append(acc_x_t)
             acc_y_t_list.append(acc_y_t)
             acc_z_t_list.append(acc_z_t)
             pred_t_list.append(pred_t)
-        pred_t = model_fn(all_params, train_data['pos'][c+1000*(k+1):c+counts[j],:])
-        acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c+1000*(k+1):c+counts[j],:], model_fn)
+        pred_t = model_fn(all_params, train_data['pos'][c2+1000*(k+1):c2+counts_[j],:])
+        acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c2+1000*(k+1):c2+counts_[j],:], model_fn)
         acc_x_t_list.append(acc_x_t)
         acc_y_t_list.append(acc_y_t)
         acc_z_t_list.append(acc_z_t)
@@ -176,23 +180,23 @@ if __name__ == "__main__":
         
         pred_v = model_fn(all_params, valid_data['pos'][c:counts[j]+c,:])
         
-        #acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c:counts[j]+c,:], model_fn)
+        acc_x_t, acc_y_t, acc_z_t = acc_cal(dynamic_params, all_params, train_data['pos'][c2:counts_[j]+c2,:], model_fn)
         acc_x_v, acc_y_v, acc_z_v = acc_cal(dynamic_params, all_params, valid_data['pos'][c:counts[j]+c,:], model_fn)
         output_keys = ['u', 'v', 'w', 'p']
         output_unnorm = [all_params["data"]['u_ref'],all_params["data"]['v_ref'],
                         all_params["data"]['w_ref'],1.185*all_params["data"]['u_ref']]
         
         outputs_t = {output_keys[i]:pred_t[:,i]*output_unnorm[i] for i in range(len(output_keys)-1)}
-        #outputs_t['p'] = outputs_t['p'] - np.mean(outputs_t['p'])
-        output_ext_t = {output_keys[i]:train_data['vel'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
-        output_ext_acc_t = {output_keys[i]:train_data['acc'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
+        
+        output_ext_t = {output_keys[i]:train_data['vel'][c2:counts_[j]+c2,i] for i in range(len(output_keys)-1)}
+        output_ext_acc_t = {output_keys[i]:train_data['acc'][c2:counts_[j]+c2,i] for i in range(len(output_keys)-1)}
 
         outputs_v = {output_keys[i]:pred_v[:,i]*output_unnorm[i] for i in range(len(output_keys)-1)}
-        #outputs_v['p'] = outputs_v['p'] - np.mean(outputs_v['p'])
+        
         output_ext_v = {output_keys[i]:valid_data['vel'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
         output_ext_acc_v = {output_keys[i]:valid_data['acc'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
-        
         c = c + counts[j]
+        c2 = c2 + counts_[j]
         f_t = np.concatenate([(outputs_t['u']-output_ext_t['u']).reshape(-1,1), 
                               (outputs_t['v']-output_ext_t['v']).reshape(-1,1), 
                               (outputs_t['w']-output_ext_t['w']).reshape(-1,1)],1)
@@ -215,15 +219,7 @@ if __name__ == "__main__":
                             (acc_z_v-output_ext_acc_v['w'].reshape(-1,1)).reshape(-1,1)],1)
         div_av = np.concatenate([output_ext_acc_v['u'].reshape(-1,1), output_ext_acc_v['v'].reshape(-1,1), 
                             output_ext_acc_v['w'].reshape(-1,1)],1) 
-        print('divt',div_t)
-        print('divat',div_at)
-        print('divv',div_v)
-        print('divav',div_av)
-        print('ft',f_t)
-        print('fat',f_at)
-        print('fv',f_v)
-        print('fav',f_av)
-        
+       
 
         temporal_error_vel_t_list.append(np.linalg.norm(f_t, ord='fro')/np.linalg.norm(div_t,ord='fro'))
         temporal_error_vel_v_list.append(np.linalg.norm(f_v, ord='fro')/np.linalg.norm(div_v,ord='fro'))
@@ -231,8 +227,8 @@ if __name__ == "__main__":
         temporal_error_acc_v_list.append(np.linalg.norm(f_av, ord='fro')/np.linalg.norm(div_av,ord='fro'))  
 
     temporal_error = np.concatenate([np.array(temporal_error_vel_t_list).reshape(-1,1),
-                                     np.array(temporal_error_vel_v_list).reshape(-1,1),
                                      np.array(temporal_error_acc_t_list).reshape(-1,1),
+                                     np.array(temporal_error_vel_v_list).reshape(-1,1),
                                      np.array(temporal_error_acc_v_list).reshape(-1,1)],1)
 
     if os.path.isdir("datas/"+checkpoint_fol):
