@@ -36,32 +36,6 @@ def NRMSE(pred, test, div):
     out = np.sqrt(np.mean(np.square(pred-test))/np.mean(np.square(div)))
     return out
 
-class Model(struct.PyTreeNode):
-    params: Any
-    forward: callable = struct.field(pytree_node=False)
-    def __apply__(self,*args):
-        return self.forward(*args)
-
-class PINNbase:
-    def __init__(self,c):
-        c.get_outdirs()
-        c.save_constants_file()
-        self.c=c
-class PINN(PINNbase):
-    def test(self):
-        all_params = {"domain":{}, "data":{}, "network":{}, "problem":{}}
-        all_params["domain"] = self.c.domain.init_params(**self.c.domain_init_kwargs)
-        all_params["data"] = self.c.data.init_params(**self.c.data_init_kwargs)
-        global_key = random.PRNGKey(42)
-        all_params["network"] = self.c.network.init_params(**self.c.network_init_kwargs)
-        all_params["problem"] = self.c.problem.init_params(**self.c.problem_init_kwargs)
-        optimiser = self.c.optimization_init_kwargs["optimiser"](self.c.optimization_init_kwargs["learning_rate"])
-        grids, all_params = self.c.domain.sampler(all_params)
-        train_data, all_params = self.c.data.train_data(all_params)
-        all_params = self.c.problem.constraints(all_params)
-        valid_data = self.c.problem.exact_solution(all_params)
-        model_fn = c.network.network_fn
-        return all_params, model_fn, train_data, valid_data
 def equ_func(all_params, g_batch, cotangent, model_fns):
     def u_t(batch):
         return model_fns(all_params, batch)
@@ -107,11 +81,39 @@ def acc_cal(dynamic_params, all_params, g_batch, model_fns):
     wz = all_params["data"]['w_ref']*out_z[:,2:3]/all_params["data"]["domain_range"]["z"][1]
     pz = all_params["data"]['u_ref']*out_z[:,3:4]/all_params["data"]["domain_range"]["z"][1]
     
+
     acc_x = ut + u*ux + v*uy + w*uz
     acc_y = vt + u*vx + v*vy + w*vz
     acc_z = wt + u*wx + v*wy + w*wz
-    acc = np.concatenate([acc_x.reshape(-1,1), acc_y.reshape(-1,1), acc_z.reshape(-1,1)],1)
-    return acc
+
+    return acc_x, acc_y, acc_z
+
+class Model(struct.PyTreeNode):
+    params: Any
+    forward: callable = struct.field(pytree_node=False)
+    def __apply__(self,*args):
+        return self.forward(*args)
+
+class PINNbase:
+    def __init__(self,c):
+        c.get_outdirs()
+        c.save_constants_file()
+        self.c=c
+class PINN(PINNbase):
+    def test(self):
+        all_params = {"domain":{}, "data":{}, "network":{}, "problem":{}}
+        all_params["domain"] = self.c.domain.init_params(**self.c.domain_init_kwargs)
+        all_params["data"] = self.c.data.init_params(**self.c.data_init_kwargs)
+        global_key = random.PRNGKey(42)
+        all_params["network"] = self.c.network.init_params(**self.c.network_init_kwargs)
+        all_params["problem"] = self.c.problem.init_params(**self.c.problem_init_kwargs)
+        optimiser = self.c.optimization_init_kwargs["optimiser"](self.c.optimization_init_kwargs["learning_rate"])
+        grids, all_params = self.c.domain.sampler(all_params)
+        train_data, valid_data, all_params = self.c.data.train_data(all_params)
+        all_params = self.c.problem.constraints(all_params)
+        #valid_data = self.c.problem.exact_solution(all_params)
+        model_fn = c.network.network_fn
+        return all_params, model_fn, train_data, valid_data
 #%%
 if __name__ == "__main__":
     from PINN_domain import *
