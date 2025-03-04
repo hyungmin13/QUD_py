@@ -53,17 +53,15 @@ def acc_func(dynamic_params, all_params, particles, model_fns):
     ux = all_params["data"]['u_ref']*out_x[:,0:1]/all_params["data"]["domain_range"]["x"][1]
     vx = all_params["data"]['v_ref']*out_x[:,1:2]/all_params["data"]["domain_range"]["x"][1]
     wx = all_params["data"]['w_ref']*out_x[:,2:3]/all_params["data"]["domain_range"]["x"][1]
-    px = all_params["data"]['u_ref']*out_x[:,3:4]/all_params["data"]["domain_range"]["x"][1]
 
     uy = all_params["data"]['u_ref']*out_y[:,0:1]/all_params["data"]["domain_range"]["y"][1]
     vy = all_params["data"]['v_ref']*out_y[:,1:2]/all_params["data"]["domain_range"]["y"][1]
     wy = all_params["data"]['w_ref']*out_y[:,2:3]/all_params["data"]["domain_range"]["y"][1]
-    py = all_params["data"]['u_ref']*out_y[:,3:4]/all_params["data"]["domain_range"]["y"][1]
 
     uz = all_params["data"]['u_ref']*out_z[:,0:1]/all_params["data"]["domain_range"]["z"][1]
     vz = all_params["data"]['v_ref']*out_z[:,1:2]/all_params["data"]["domain_range"]["z"][1]
     wz = all_params["data"]['w_ref']*out_z[:,2:3]/all_params["data"]["domain_range"]["z"][1]
-    pz = all_params["data"]['u_ref']*out_z[:,3:4]/all_params["data"]["domain_range"]["z"][1]
+
     acc_x = ut + u*ux + v*uy + w*uz
     acc_y = vt + u*vx + v*vy + w*vz
     acc_z = wt + u*wx + v*wy + w*wz
@@ -78,6 +76,7 @@ def PINN_loss(dynamic_params, all_params, g_batch, particles, particle_vel, part
     out_z, out_zz = equ_func(all_params, g_batch, jnp.tile(jnp.array([[0.0, 0.0, 0.0, 1.0]]),(g_batch.shape[0],1)),model_fns)
 
     p_out = model_fns(all_params, particles)
+    acc_x, acc_y, acc_z = acc_func(dynamic_params, all_params, particles, model_fns)
     #out, out_t, out_x, out_xx, out_y, out_yy, out_z, out_zz = eqn_func(g_batch)
     u = all_params["data"]['u_ref']*out[:,0:1]
     v = all_params["data"]['v_ref']*out[:,1:2]
@@ -113,10 +112,7 @@ def PINN_loss(dynamic_params, all_params, g_batch, particles, particle_vel, part
     uzz = all_params["data"]['u_ref']*out_zz[:,0:1]/all_params["data"]["domain_range"]["z"][1]**2
     vzz = all_params["data"]['v_ref']*out_zz[:,1:2]/all_params["data"]["domain_range"]["z"][1]**2
     wzz = all_params["data"]['w_ref']*out_zz[:,2:3]/all_params["data"]["domain_range"]["z"][1]**2
-       
-    acc_x = ut + u*ux + v*uy + w*uz
-    acc_y = vt + u*vx + v*vy + w*vz
-    acc_z = wt + u*wx + v*wy + w*wz
+    
     loss_u = all_params["data"]['u_ref']*p_out[:,0:1] - particle_vel[:,0:1]
     loss_u = jnp.mean(loss_u**2)
 
@@ -126,11 +122,11 @@ def PINN_loss(dynamic_params, all_params, g_batch, particles, particle_vel, part
     loss_w = all_params["data"]['w_ref']*p_out[:,2:3] - particle_vel[:,2:3]
     loss_w = jnp.mean(loss_w**2)
     
-    loss_acc_x = acc_x - particle_acc[:,0]
+    loss_acc_x = acc_x - particle_acc[:,0:1]
     loss_acc_x = jnp.mean(loss_acc_x**2)
-    loss_acc_y = acc_y - particle_acc[:,1]
+    loss_acc_y = acc_y - particle_acc[:,1:2]
     loss_acc_y = jnp.mean(loss_acc_y**2)
-    loss_acc_z = acc_z - particle_acc[:,2]
+    loss_acc_z = acc_z - particle_acc[:,2:3]
     loss_acc_z = jnp.mean(loss_acc_z**2)
     
     loss_con = ux + vy + wz
