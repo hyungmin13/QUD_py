@@ -73,7 +73,8 @@ def Derivatives(dynamic_params, all_params, g_batch, model_fns):
     u = all_params["data"]['u_ref']*out[:,0:1]
     v = all_params["data"]['v_ref']*out[:,1:2]
     w = all_params["data"]['w_ref']*out[:,2:3]
-
+    p = 1.185*all_params["data"]['u_ref']*out[:,3:4]
+    uvwp = np.concatenate([u, v, w, p],1)
     ut = all_params["data"]['u_ref']*out_t[:,0:1]/all_params["data"]["domain_range"]["t"][1]
     vt = all_params["data"]['v_ref']*out_t[:,1:2]/all_params["data"]["domain_range"]["t"][1]
     wt = all_params["data"]['w_ref']*out_t[:,2:3]/all_params["data"]["domain_range"]["t"][1]
@@ -89,6 +90,7 @@ def Derivatives(dynamic_params, all_params, g_batch, model_fns):
     uz = all_params["data"]['u_ref']*out_z[:,0:1]/all_params["data"]["domain_range"]["z"][1]
     vz = all_params["data"]['v_ref']*out_z[:,1:2]/all_params["data"]["domain_range"]["z"][1]
     wz = all_params["data"]['w_ref']*out_z[:,2:3]/all_params["data"]["domain_range"]["z"][1]
+    
     
     acc_x = ut + u*ux + v*uy + w*uz
     acc_y = vt + u*vx + v*vy + w*vz
