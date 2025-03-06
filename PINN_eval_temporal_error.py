@@ -70,8 +70,8 @@ def acc_cal(dynamic_params, all_params, g_batch, model_fns):
     acc_x = ut + u*ux + v*uy + w*uz
     acc_y = vt + u*vx + v*vy + w*vz
     acc_z = wt + u*wx + v*wy + w*wz
-
-    return acc_x, acc_y, acc_z
+    acc = np.concatenate([acc_x.reshape(-1,1), acc_y.reshape(-1,1), acc_z.reshape(-1,1)],1)
+    return acc
 
 class PINNbase:
     def __init__(self,c):
@@ -103,18 +103,16 @@ if __name__ == "__main__":
     from PINN_problem import *
     import argparse
     from glob import glob
-    checkpoint_fol = "QUD_run_01"
-    #parser = argparse.ArgumentParser(description='QUD_PINN')
-    #parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
-    #args = parser.parse_args()
-    #checkpoint_fol = args.checkpoint
+    #checkpoint_fol = "QUD_run_01"
+    parser = argparse.ArgumentParser(description='QUD_PINN')
+    parser.add_argument('-c', '--checkpoint', type=str, help='checkpoint', default="")
+    args = parser.parse_args()
+    checkpoint_fol = args.checkpoint
     #print(checkpoint_fol, type(checkpoint_fol))
     path = "results/summaries/"
     with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','rb') as f:
         a = pickle.load(f)
-    print(a['data_init_kwargs'])
-#%%
-    a["data_init_kwargs"]['path'] = "/scratch/hyun/UrbanRescue/run065/"
+    a["data_init_kwargs"]['path'] = "UrbanRescue/run065/"
     #a['problem_init_kwargs']['path_s'] = 'Ground/'
     #with open(path+checkpoint_fol+'/constants_'+ str(checkpoint_fol) +'.pickle','wb') as f:
     #    pickle.dump(a,f)
@@ -142,55 +140,70 @@ if __name__ == "__main__":
 
 #%% temporal error는 51개의 시간단계에대해서 [:,0]는 velocity error, [:,1]은 pressure error
 
-    temporal_error_vel_t_list = []
-    temporal_error_vel_v_list = []
+    temporal_error_vel_list = []
+    temporal_error_acc_list = []
     temporal_error_acc_t_list = []
-    temporal_error_acc_v_list = []
+
     c = 0
+    c2 = 0
     dynamic_params = all_params["network"]["layers"]
     data_keys = ['pos', 'vel', 'acc']
 
     #index_v = np.where((valid_data['pos'][:,3]<0.4)&(valid_data['pos'][:,3]>0.02))
     #valid_data = {data_keys[i]:valid_data[data_keys[i]][index_v[0],:] for i in range(len(data_keys))}
-    acc_x_list = []
-    acc_y_list = []
-    acc_z_list = []
+    acc_t_list = []
+    acc_v_list = []
     uni, counts = np.unique(valid_data['pos'][:,0],return_counts=True)
+    uni2, counts2 = np.unique(train_data['pos'][:,0],return_counts=True)
     for j in range(51):
         print(j)
-        pred_v = model_fn(all_params, valid_data['pos'][c:counts[j]+c,:])
+        pred = np.concatenate([model_fn(all_params, valid_data['pos'][c:c+counts[j]][10000*s:10000*(s+1)]) 
+                              for s in range(valid_data['pos'][c:c+counts[j]].shape[0]//10000+1)],0)
         
-        acc_x_v, acc_y_v, acc_z_v = acc_cal(dynamic_params, all_params, valid_data['pos'][c:counts[j]+c,:], model_fn)
-        acc_x_list.append(acc_x_v)
-        acc_y_list.append(acc_y_v)
-        acc_z_list.append(acc_z_v)
+        acc = np.concatenate([acc_cal(all_params["network"]["layers"], all_params, valid_data['pos'][c:c+counts[j]][10000*s:10000*(s+1)], model_fn) 
+                              for s in range(valid_data['pos'][c:c+counts[j]].shape[0]//10000+1)],0)
+        acc_t = np.concatenate([acc_cal(all_params["network"]["layers"], all_params, train_data['pos'][c2:c2+counts2[j]][10000*s:10000*(s+1)], model_fn) 
+                              for s in range(train_data['pos'][c2:c2+counts2[j]].shape[0]//10000+1)],0)
         output_keys = ['u', 'v', 'w', 'p']
         output_unnorm = [all_params["data"]['u_ref'],all_params["data"]['v_ref'],
                         all_params["data"]['w_ref'],1.185*all_params["data"]['u_ref']]
         
-        outputs_v = {output_keys[i]:pred_v[:,i]*output_unnorm[i] for i in range(len(output_keys)-1)}
+        outputs = {output_keys[i]:pred[:,i]*output_unnorm[i] for i in range(len(output_keys))}
         
-        output_ext_v = {output_keys[i]:valid_data['vel'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
-        output_ext_acc_v = {output_keys[i]:valid_data['acc'][c:counts[j]+c,i] for i in range(len(output_keys)-1)}
-        c = c + counts[j]    
-        f_v = np.concatenate([(outputs_v['u']-output_ext_v['u']).reshape(-1,1), 
-                            (outputs_v['v']-output_ext_v['v']).reshape(-1,1), 
-                            (outputs_v['w']-output_ext_v['w']).reshape(-1,1)],1)
-        div_v = np.concatenate([output_ext_v['u'].reshape(-1,1), output_ext_v['v'].reshape(-1,1), 
-                            output_ext_v['w'].reshape(-1,1)],1)
-
-        f_av = np.concatenate([(acc_x_v-output_ext_acc_v['u'].reshape(-1,1)).reshape(-1,1), 
-                            (acc_y_v-output_ext_acc_v['v'].reshape(-1,1)).reshape(-1,1), 
-                            (acc_z_v-output_ext_acc_v['w'].reshape(-1,1)).reshape(-1,1)],1)
-        div_av = np.concatenate([output_ext_acc_v['u'].reshape(-1,1), output_ext_acc_v['v'].reshape(-1,1), 
-                            output_ext_acc_v['w'].reshape(-1,1)],1) 
+        output_ext = {output_keys[i]:valid_data['vel'][c:c+counts[j],i] for i in range(len(output_keys)-1)}
+        output_ext_acc = {output_keys[i]:valid_data['acc'][c:c+counts[j],i] for i in range(len(output_keys)-1)}
+        output_ext_acc_t = {output_keys[i]:train_data['acc'][c2:c2+counts2[j],i] for i in range(len(output_keys)-1)}
+        c = c + counts[j]
+        c2 = c2 + counts2[j]
+        f = np.concatenate([(outputs['u']-output_ext['u']).reshape(-1,1), 
+                            (outputs['v']-output_ext['v']).reshape(-1,1), 
+                            (outputs['w']-output_ext['w']).reshape(-1,1)],1)
+        div = np.concatenate([output_ext['u'].reshape(-1,1), output_ext['v'].reshape(-1,1), 
+                              output_ext['w'].reshape(-1,1)],1)
+        f2 = np.concatenate([(acc[:,0]-output_ext_acc['u']).reshape(-1,1), 
+                             (acc[:,1]-output_ext_acc['v']).reshape(-1,1), 
+                             (acc[:,2]-output_ext_acc['w']).reshape(-1,1)],1)
+        div2 = np.concatenate([output_ext_acc['u'].reshape(-1,1), output_ext_acc['v'].reshape(-1,1), 
+                               output_ext_acc['w'].reshape(-1,1)],1)
+        f3 = np.concatenate([(acc_t[:,0]-output_ext_acc_t['u']).reshape(-1,1), 
+                             (acc_t[:,1]-output_ext_acc_t['v']).reshape(-1,1), 
+                             (acc_t[:,2]-output_ext_acc_t['w']).reshape(-1,1)],1)
+        div3 = np.concatenate([output_ext_acc_t['u'].reshape(-1,1), output_ext_acc_t['v'].reshape(-1,1), 
+                               output_ext_acc_t['w'].reshape(-1,1)],1)
        
 
-        temporal_error_vel_v_list.append(np.linalg.norm(f_v, ord='fro')/np.linalg.norm(div_v,ord='fro'))
-        temporal_error_acc_v_list.append(np.linalg.norm(f_av, ord='fro')/np.linalg.norm(div_av,ord='fro'))  
-
-    temporal_error = np.concatenate([np.array(temporal_error_vel_v_list).reshape(-1,1),
-                                     np.array(temporal_error_acc_v_list).reshape(-1,1)],1)
+        temporal_error_vel_list.append(np.linalg.norm(f, ord='fro')/np.linalg.norm(div,ord='fro'))    
+        temporal_error_acc_list.append(np.linalg.norm(f2, ord='fro')/np.linalg.norm(div2,ord='fro'))
+        temporal_error_acc_t_list.append(np.linalg.norm(f3, ord='fro')/np.linalg.norm(div3,ord='fro'))
+        acc_t_list.append(acc_t)
+        acc_v_list.append(acc)
+    temporal_error = np.concatenate([np.array(temporal_error_vel_list).reshape(-1,1),
+                                     np.array(temporal_error_acc_list).reshape(-1,1),
+                                     np.array(temporal_error_acc_t_list).reshape(-1,1)],1)
+    acc_t_list = np.concatenate(acc_t_list)
+    acc_t_list = np.concatenate([acc_t_list,train_data['acc']],1)
+    acc_v_list = np.concatenate(acc_v_list)
+    acc_v_list = np.concatenate([acc_v_list,valid_data['acc']],1)
 #%%
     if os.path.isdir("datas/"+checkpoint_fol):
         pass
@@ -200,4 +213,9 @@ if __name__ == "__main__":
     with open("datas/"+checkpoint_fol+"/temporal_error.pkl","wb") as f:
         pickle.dump(temporal_error,f)
     f.close()
-
+    with open("datas/"+checkpoint_fol+"/acc_t.pkl","wb") as f:
+        pickle.dump(acc_t_list,f)
+    f.close()
+    with open("datas/"+checkpoint_fol+"/acc_v.pkl","wb") as f:
+        pickle.dump(acc_v_list,f)
+    f.close()   
